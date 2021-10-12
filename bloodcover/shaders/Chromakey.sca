@@ -1,0 +1,26 @@
+#import <Utils.sca>
+
+// @param[default=8.0, min=0.0, max=16] alpha1
+// @param[default=1.1, min=0.0, max=2] alpha2
+// @param[default=0.5, min=0.0, max=2] despill
+// @return patch output
+vec4 main(float alpha1,
+          float alpha2,
+          float despill,
+          function<vec4(vec2)> backgroundTexture,
+          function<vec4(vec2)> cameraTexture)
+{
+  vec4 Position = std::getModelViewProjectionMatrix() * std::getVertexPosition();
+  vec2 uv = fragment(std::getVertexTexCoord());
+  vec2 fragCoord = fragment(Position.xy ) / Position.w;
+  fragCoord = fragCoord * 0.5 + 0.5;
+  fragCoord.y = 1.0 - fragCoord.y;
+
+  vec3 bk = backgroundTexture(fragCoord).rgb;
+  vec3 ca = cameraTexture(fragCoord).rgb;
+
+  float alpha = vlahosGetAlpha(ca, alpha1, alpha2);
+  ca = vlahosDespill(ca, despill);
+
+  return vec4(mix(bk, ca, alpha), 1);
+}

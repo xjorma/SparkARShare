@@ -1,0 +1,22 @@
+#import <Utils.sca>
+
+// @param[default=#000000FF] color Test Zarb
+// @return patch output
+vec4 main(vec4 color,
+          function<vec4(vec2)> backgroundTexture,
+          function<vec4(vec2)> cameraTexture)
+{
+  vec4 Position = std::getModelViewMatrix() * std::getVertexPosition();
+  vec2 uv = fragment(std::getVertexTexCoord());
+  vec2 fragCoord = fragment(Position.xy ) / Position.w;
+  fragCoord = fragCoord * 0.5 + 0.5;
+  fragCoord.y = 1.0 - fragCoord.y;
+
+  vec3 bk = backgroundTexture(fragCoord).rgb;
+  vec3 ca = cameraTexture(fragCoord).rgb;
+
+  float alpha = vlahosGetAlpha(ca, 8.0, 1.1);
+  ca = vlahosDespill(ca, 0.5);
+
+  return vec4(mix(bk, ca, alpha), 1);
+}

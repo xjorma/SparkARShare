@@ -1,0 +1,23 @@
+
+export float saturate(in float v)
+{
+    return clamp(v, 0.0, 1.0);
+}
+
+// https://www.shadertoy.com/view/fsVGzd
+
+export float vlahosGetAlpha(in vec3 c, in float a1, in float a2)
+{
+	return saturate(1.0 - a1 * (c.g - a2 * (max(c.r, c.b))));
+}
+
+export vec3 vlahosDespill(in vec3 c, in float a)
+{
+	float sub = max(c.g - a * (c.b + c.r), 0.0);
+    vec3 luma = vec3(0.2126, 0.7152, 0.0722);
+    float ol = dot(c.rgb, luma); 
+	c.g -= sub;
+    float nl = max(dot(c.rgb, luma), 1.0 / 255.0);  // Avoid Divide by zero
+    c.rgb = c.rgb * (ol / nl); 	
+	return c;
+}

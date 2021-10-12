@@ -1,0 +1,117 @@
+
+precision highp float;
+
+#import <Utils.sca>
+
+const float Pi = 3.14159265359;
+
+float noise3d(vec3 p)
+{
+   vec3 i = floor(p);
+   vec4 a = dot(i, vec3(1., 57., 21.)) + vec4(0., 57., 21., 78.);
+   vec3 f = cos((p-i)*Pi)*(-.5) + .5;
+   a = mix(sin(cos(a)*a), sin(cos(1.+a)*(1.+a)), f.x);
+   a.xy = mix(a.xz, a.yw, f.y);
+   return mix(a.x, a.y, f.z);
+}
+
+float fbm(vec3 p)
+{
+   return noise3d(p / 16.0) / 2.0 + noise3d(p / 8.0) / 4.0 + noise3d(p  / 4.0) / 8.0;
+}
+
+float sdBoxFrame( vec3 p, vec3 b, float e )
+{
+  p = abs(p  )-b;
+  vec3 q = abs(p+e)-e;
+  return min(min(
+      length(max(vec3(p.x,q.y,q.z),0.0))+min(max(p.x,max(q.y,q.z)),0.0),
+      length(max(vec3(q.x,p.y,q.z),0.0))+min(max(q.x,max(p.y,q.z)),0.0)),
+      length(max(vec3(q.x,q.y,p.z),0.0))+min(max(q.x,max(q.y,p.z)),0.0));
+}
+
+
+float sdTorus( vec3 p, vec2 t )
+{
+  vec2 q = vec2(length(p.xz)-t.x,p.y);
+  return length(q)-t.y;
+}
+
+float f(vec3 p)
+{
+   float t = std::getTime();
+   float dt = sdTorus(p.xzy, vec2(2.3, 0.9));
+   float db = sdBoxFrame(p, vec3(2.5), 0.5);
+   float a = smoothstep(0.3, 0.7, sin(t / 1.5) * 0.5 + 0.5);
+   return mix(dt, db, a) + fbm(p * 50. - t * 10.) * 0.5;
+}
+
+vec3 rayCast(in vec3 ro, in vec3 rd)
+{
+   vec3 p = ro;
+   // ld, td: local, total density 
+   // w: weighting factor
+   float ld=0., td=0.;
+   float w=0.;
+   
+   // total color
+   vec3 tc = vec3(0.);
+   
+   // i: 0 <= i <= 1.
+   // r: length of the ray
+   // l: distance function
+   float r=0., l=0., b=0.;
+
+   // rm loop
+   for (float i=0.; (i<1.); i += 1./64.)
+   {
+	   if(!((i<1.) && (l>=0.001*r) && (r < 50.)&& (td < .95)))
+		   break;
+      // evaluate distance function
+      l = f(p) * 0.5;
+      
+      // check whether we are close enough (step)
+      // compute local density and weighting factor 
+      const float h = .05;
+      ld = (h - l) * step(l, h);
+      w = (1. - td) * ld;   
+     
+      // accumulate color and density
+      tc += w; 
+      td += w;
+       
+      td += 1./200.;
+      
+      // enforce minimum stepsize
+      l = max(l, 0.03);
+      
+      // step forward
+      p += l * rd;
+      r += l;
+   }  
+    
+   // simple scattering approximation
+   //tc *= 1. / exp( ld * 0.4 ) * 1.25;
+
+   return tc;
+}
+
+// @param[default=#000000FF] color Test Zarb
+// @return patch output
+
+vec4 main(vec4 color, function<vec4(vec2)> envMap)
+{
+  vec3 localPosition = fragment(std::getVertexPosition()).xyz;
+  vec3 camPosition =  (std::getInverseModelMatrix() * (std::getInverseViewMatrix() * vec4(0,0,0,1))).xyz;
+  vec3 rd = normalize(localPosition - camPosition);
+  vec3 n = fragment(std::getVertexNormal());
+  vec3 col = rayCast(localPosition * 7.0, refract(rd, n, 0.97));
+
+  // Reflection
+  vec3 ref =  (std::getModelMatrix() * vec4(reflect(rd, n), 0)).xyz;
+  vec3 refcol = sampleCube( envMap, ref).rgb;
+
+  col += refcol * 0.25;
+
+  return vec4(col, 1);
+}
